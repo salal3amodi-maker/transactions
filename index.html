@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>نظام المعاملات</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: شريط علوي + لوحة معلومات + قائمة معاملات + تفاصيل مع خط زمني، بتدرج أزرق محايد */
+:root{
+  --bg:#f2f5fa; --surface:#ffffff; --surface2:#f6f8fc; --ink:#15213b; --mut:#5a6885; --line:#dce3ef;
+  --accent:#1d4fd7; --accent-ink:#ffffff; --accent-soft:#e5edfd;
+  --good:#12765a; --good-soft:#dff3ea; --warn:#9a5700; --warn-soft:#fcefd6; --bad:#b0271f; --bad-soft:#fce7e5;
+  --shadow:0 1px 2px rgba(21,33,59,.06),0 6px 20px rgba(21,33,59,.05);
+  --font-body:"IBM Plex Sans Arabic","Segoe UI",Tahoma,system-ui,sans-serif;
+  --font-display:"Noto Kufi Arabic","IBM Plex Sans Arabic",Tahoma,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c1322; --surface:#131c31; --surface2:#0f182b; --ink:#e7ecf8; --mut:#9aa8c7; --line:#243250;
+  --accent:#6f9cff; --accent-ink:#0a1330; --accent-soft:#1a2a52;
+  --good:#4cc39a; --good-soft:#12302a; --warn:#f0b45a; --warn-soft:#34270f; --bad:#ff8d84; --bad-soft:#3a1b1b;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c1322; --surface:#131c31; --surface2:#0f182b; --ink:#e7ecf8; --mut:#9aa8c7; --line:#243250;
+  --accent:#6f9cff; --accent-ink:#0a1330; --accent-soft:#1a2a52;
+  --good:#4cc39a; --good-soft:#12302a; --warn:#f0b45a; --warn-soft:#34270f; --bad:#ff8d84; --bad-soft:#3a1b1b;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.6;direction:rtl;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{font-family:var(--font-display);margin:0;line-height:1.4;text-wrap:balance}
+h2{font-size:18px}h3{font-size:15px}
+.shell{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;min-width:0}
+.card.flat{box-shadow:none}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1;min-width:0}
+.mut{color:var(--mut)}.small{font-size:13px}.num{font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.btn{background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:600;white-space:nowrap}
+.btn:hover{filter:brightness(1.06)}
+.btn.ghost{background:transparent;color:var(--accent);border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--accent)}
+.btn.good{background:var(--good);border-color:var(--good);color:#fff}
+.btn.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.sm{padding:5px 12px;font-size:13px}
+input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface2)}
+textarea{min-height:92px;resize:vertical}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mut);font-weight:500}
+label.f>input,label.f>select,label.f>textarea{color:var(--ink);font-size:15px}
+
+.tag{display:inline-flex;align-items:center;gap:4px;padding:1px 10px;border-radius:99px;font-size:12.5px;font-weight:600;background:var(--surface2);border:1px solid var(--line);color:var(--mut);white-space:nowrap}
+.tag.new{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.tag.esc{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.tag.done{background:var(--good-soft);color:var(--good);border-color:transparent}
+.tag.urgent{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.tag.high{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.tag.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:36px;height:36px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--font-display);font-weight:700}
+.brand b{font-family:var(--font-display);font-size:17px}
+.who{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.who select{width:auto;max-width:230px;padding:6px 10px;font-size:13px}
+.bellwrap{position:relative}
+.iconbtn{position:relative;width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;cursor:pointer}
+.badge{position:absolute;top:-5px;inset-inline-start:-5px;min-width:18px;height:18px;border-radius:9px;background:var(--bad);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 4px}
+.drop{position:absolute;top:44px;inset-inline-end:0;width:min(340px,86vw);background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:20;overflow:hidden}
+.drop .it{padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:block;width:100%;text-align:start;background:none;border-inline:0;border-top:0}
+.drop .it:hover{background:var(--surface2)}
+.drop .it.unread{background:var(--accent-soft)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:8px 14px;cursor:pointer;font-weight:600;color:var(--mut)}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* dashboard */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.tile .v{font-family:var(--font-display);font-size:26px;font-weight:700;line-height:1.3}
+.tile .l{font-size:13px;color:var(--mut)}
+.tile.alert .v{color:var(--bad)}
+.cols{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+@media (max-width:820px){.cols{grid-template-columns:1fr}}
+.qrow{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer;flex-wrap:wrap}
+.qrow:last-child{border-bottom:0}
+.qrow:hover .qt{color:var(--accent)}
+.qt{font-weight:600}
+.stack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--surface2);border:1px solid var(--line)}
+.stack i{display:block;height:100%}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--mut)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:5px}
+.hbar{display:grid;grid-template-columns:110px 1fr 36px;gap:10px;align-items:center;margin:8px 0;font-size:14px}
+.hbar .track{height:12px;background:var(--surface2);border-radius:6px;overflow:hidden;display:flex;border:1px solid var(--line)}
+.days{display:flex;gap:8px;align-items:flex-end;height:150px;padding-top:18px}
+.day{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px}
+.day .bars{display:flex;gap:3px;align-items:flex-end;flex:1;width:100%;justify-content:center}
+.day .b{width:42%;max-width:22px;border-radius:4px 4px 0 0;position:relative;min-height:2px}
+.day .b span{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--mut)}
+.day small{font-size:12px;color:var(--mut)}
+.feed{display:flex;flex-direction:column;gap:8px}
+.feed div{font-size:13.5px;padding-inline-start:12px;border-inline-start:2px solid var(--line)}
+
+/* list */
+.filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px}
+@media (max-width:720px){.filters{grid-template-columns:1fr 1fr}.filters .search{grid-column:1/-1}}
+.item{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.item:last-child{border-bottom:0}
+.item:hover .it-title{color:var(--accent)}
+.it-title{font-weight:600;font-size:15.5px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.empty{padding:28px;text-align:center;color:var(--mut)}
+
+/* detail */
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0;padding:12px;background:var(--surface2);border-radius:10px}
+.meta div{display:flex;flex-direction:column;font-size:13px;color:var(--mut)}
+.meta b{color:var(--ink);font-size:14.5px;font-weight:600}
+.body-text{white-space:pre-wrap;margin:8px 0}
+.files{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.file{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface2);border-radius:8px;padding:5px 10px;font-size:13px}
+.file em{font-style:normal;font-weight:700;font-size:11px;background:var(--accent-soft);color:var(--accent);border-radius:4px;padding:0 5px}
+.tl{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column}
+.tl li{position:relative;padding:0 22px 16px 0}
+.tl li::before{content:"";position:absolute;right:5px;top:6px;bottom:-6px;width:2px;background:var(--line)}
+.tl li:last-child::before{display:none}
+.tl li::after{content:"";position:absolute;right:0;top:6px;width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid var(--surface)}
+.tl li.reply::after{background:var(--good)}
+.tl li.escalate::after{background:var(--warn)}
+.tl .q{background:var(--surface2);border-radius:8px;padding:8px 12px;margin-top:6px;font-size:14px}
+.ai{border:1px solid var(--accent);border-radius:12px;padding:14px;background:var(--accent-soft)}
+.ai .box{background:var(--surface);border-radius:8px;padding:10px 12px;margin:8px 0;border:1px solid var(--line)}
+.canned{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.canned:last-child{border-bottom:0}
+.canned span{flex:1;min-width:220px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-inline-end:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.grid2{grid-template-columns:1fr}}
+
+/* login */
+.login{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+@media (max-width:820px){.login{grid-template-columns:1fr}}
+.pane{display:flex;flex-direction:column;gap:12px}
+.demo{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+.demo button{text-align:start;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer;display:flex;flex-direction:column}
+.demo button:hover{border-color:var(--accent)}
+.demo small{color:var(--mut)}
+.feat{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.feat li{padding-inline-start:16px;position:relative}
+.feat li::before{content:"";position:absolute;inset-inline-start:0;top:11px;width:6px;height:6px;border-radius:2px;background:var(--accent)}
+/* ميزات جديدة */
+.brief{border:1px solid var(--accent);background:var(--accent-soft);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.brief h2{font-size:17px}
+.brief .hl{font-family:var(--font-display);font-size:16.5px;font-weight:600;line-height:1.7}
+.brief ul{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:3px}
+.brief .acts{display:flex;gap:8px;flex-wrap:wrap}
+.brief .act{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:13.5px;cursor:pointer}
+.brief .act:hover{border-color:var(--accent)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{border:1px solid var(--line);background:var(--surface2);border-radius:99px;padding:3px 13px;cursor:pointer;font-size:13px}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.ring{position:relative;width:70px;height:70px;flex:none}
+.ring svg{transform:rotate(-90deg);display:block}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:12px;text-align:center;line-height:1.2;font-family:var(--font-display)}
+.route{border:1px dashed var(--accent);border-radius:10px;padding:10px 12px;background:var(--accent-soft);font-size:14px}
+.lb{display:grid;grid-template-columns:minmax(80px,140px) 1fr auto;gap:10px;align-items:center;margin:9px 0;font-size:14px}
+.lb .track{height:12px;background:var(--surface2);border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.lb .track i{display:block;height:100%;background:var(--accent)}
+.titlerow{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:14px}
+#toast{position:fixed;inset-inline:0;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;pointer-events:none;z-index:50}
+#toast div{background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:99px;font-weight:600;font-size:14px;box-shadow:var(--shadow)}
+</style>
+
+<style>:root{color-scheme:light}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<div id="app" dir="rtl" lang="ar"></div>
+<div id="toast" hidden><div></div></div>
+
+<script>
+document.documentElement.dir = "rtl";
+document.documentElement.lang = "ar";
+
+/* ---------- ثوابت ---------- */
+const DEPTS = {fin: "المالية", hr: "الموارد البشرية", ads: "الإعلان"};
+const LV = ["موظف", "مدير قسم", "المدير العام"];
+const PRI = {urgent: {n: "عاجلة", h: 4}, high: {n: "مهمة", h: 24}, normal: {n: "عادية", h: 72}};
+const ST = {new: "جديدة", esc: "محولة", done: "تم الرد"};
+const H = 3600e3;
+const MIN_SAVED = 8; // تقدير الدقائق الموفّرة لكل رد جاهز أو مقترح بالذكاء الاصطناعي
+
+const USERS = [
+  {email: "sara@co.com", name: "سارة", dept: "fin", level: 0},
+  {email: "khaled@co.com", name: "خالد", dept: "hr", level: 0},
+  {email: "noura@co.com", name: "نورة", dept: "ads", level: 0},
+  {email: "fm@co.com", name: "مدير المالية", dept: "fin", level: 1},
+  {email: "hm@co.com", name: "مدير الموارد البشرية", dept: "hr", level: 1},
+  {email: "am@co.com", name: "مدير الإعلان", dept: "ads", level: 1},
+  {email: "gm@co.com", name: "المدير العام", dept: null, level: 2},
+];
+const PASS = "1234";
+
+const CANNED = {
+  fin: [
+    "تم استلام طلبكم، وجارٍ صرف المبلغ خلال 3 أيام عمل.",
+    "نعتذر، الطلب غير مكتمل المستندات. نرجو إرفاق الفاتورة الأصلية.",
+    "تمت الموافقة على الطلب وإحالته إلى الصرف.",
+    "نعتذر، الطلب خارج الميزانية المعتمدة حاليًا."
+  ],
+  hr: [
+    "تمت الموافقة على طلب الإجازة، نتمنى لك إجازة سعيدة.",
+    "تم استلام طلبكم، وسيتم الرد خلال يومين عمل.",
+    "نعتذر، رصيد الإجازات غير كافٍ لهذا الطلب.",
+    "نرجو مراجعة الموارد البشرية لاستكمال الإجراءات."
+  ],
+  ads: [
+    "تم استلام طلب الحملة، وسنرسل لكم الجدول الزمني قريبًا.",
+    "نرجو تزويدنا بالمحتوى والشعار بدقة عالية لبدء التنفيذ.",
+    "تمت الموافقة على التصميم، ويمكن البدء بالنشر.",
+    "نعتذر، الموعد المطلوب غير متاح، ونقترح موعدًا بديلًا."
+  ]
+};
+
+/* ---------- البيانات ---------- */
+const KEY = "txsys-v3";
+function seed() {
+  const now = Date.now(); let id = 0, nid = 0;
+  const txs = [], notifs = [];
+  const mk = o => { id++; const t = Object.assign({id, ref: "م-" + (1000 + id), priority: "normal", level: 0, status: "new", attachments: [], log: []}, o); t.due = t.createdAt + PRI[t.priority].h * H; txs.push(t); return t; };
+  const L = (t, at, by, role, action, text, kind) => t.log.push({at, by, role, action, text, kind});
+  const N = (to, text, txId, at) => notifs.push({id: ++nid, to, text, txId, at, read: []});
+
+  let t = mk({title: "طلب صرف عهدة للمشتريات المكتبية", body: "أرجو صرف عهدة بمبلغ 2000 ريال لشراء مستلزمات المكتب للربع القادم.", dept: "fin", from: "خالد", createdAt: now - 26 * H, attachments: [{name: "قائمة-المشتريات.pdf", size: 182000}]});
+  L(t, t.createdAt, "خالد", "موظف", "created", "تم إنشاء المعاملة"); N(["sara@co.com"], "معاملة جديدة: " + t.title, t.id, t.createdAt);
+
+  t = mk({title: "طلب إجازة سنوية", body: "أرغب بإجازة سنوية لمدة 5 أيام بداية الأسبوع القادم.", dept: "hr", from: "نورة", createdAt: now - 5 * H});
+  L(t, t.createdAt, "نورة", "موظف", "created", "تم إنشاء المعاملة"); N(["khaled@co.com"], "معاملة جديدة: " + t.title, t.id, t.createdAt);
+
+  t = mk({title: "حملة إعلانية للمنتج الجديد", body: "نحتاج حملة على وسائل التواصل الاجتماعي بميزانية 20000 ريال، تبدأ الشهر القادم.", dept: "ads", from: "سارة", priority: "high", createdAt: now - 3 * H, attachments: [{name: "ملخص-الحملة.docx", size: 96000}]});
+  L(t, t.createdAt, "سارة", "موظف", "created", "تم إنشاء المعاملة"); N(["noura@co.com"], "معاملة جديدة: " + t.title, t.id, t.createdAt);
+
+  t = mk({title: "زيادة ميزانية التسويق للربع الأخير", body: "طلب زيادة ميزانية الإعلانات بمبلغ 50000 ريال لتغطية حملات نهاية العام.", dept: "fin", from: "مدير الإعلان", priority: "urgent", createdAt: now - 6 * H, level: 1, status: "esc"});
+  L(t, t.createdAt, "مدير الإعلان", "مدير قسم", "created", "تم إنشاء المعاملة");
+  L(t, t.createdAt + 1.5 * H, "سارة", "موظف", "escalate", "المبلغ يتجاوز صلاحيتي، أرجو الاعتماد.");
+  N(["fm@co.com"], "معاملة محولة إليك: " + t.title, t.id, t.createdAt + 1.5 * H);
+
+  t = mk({title: "اعتماد فاتورة المورد", body: "اعتماد فاتورة المورد بمبلغ 18500 ريال لخدمات الطباعة.", dept: "fin", from: "نورة", priority: "high", createdAt: now - 9 * H, level: 1, status: "esc", attachments: [{name: "فاتورة-2291.pdf", size: 310000}]});
+  L(t, t.createdAt, "نورة", "موظف", "created", "تم إنشاء المعاملة");
+  L(t, t.createdAt + 2 * H, "سارة", "موظف", "escalate", "الفاتورة أعلى من حد الموافقة.");
+  N(["fm@co.com"], "معاملة محولة إليك: " + t.title, t.id, t.createdAt + 2 * H);
+
+  t = mk({title: "التعاقد مع مؤثرين للحملة الموسمية", body: "طلب اعتماد عقود مع 6 مؤثرين بإجمالي 120000 ريال.", dept: "ads", from: "سارة", priority: "urgent", createdAt: now - 2 * H, level: 2, status: "esc", attachments: [{name: "عروض-المؤثرين.pdf", size: 520000}]});
+  L(t, t.createdAt, "سارة", "موظف", "created", "تم إنشاء المعاملة");
+  L(t, t.createdAt + 0.3 * H, "نورة", "موظف", "escalate", "يحتاج موافقة الإدارة.");
+  L(t, t.createdAt + 0.8 * H, "مدير الإعلان", "مدير قسم", "escalate", "المبلغ يتجاوز صلاحية القسم.");
+  N(["gm@co.com"], "معاملة محولة إليك: " + t.title, t.id, t.createdAt + 0.8 * H);
+
+  const done = (title, body, dept, from, hAgo, took, by, role, kind, text) => {
+    const x = mk({title, body, dept, from, createdAt: now - hAgo * H, status: "done", doneAt: now - (hAgo - took) * H});
+    L(x, x.createdAt, from, "موظف", "created", "تم إنشاء المعاملة");
+    L(x, x.doneAt, by, role, "reply", text, kind);
+  };
+  done("طلب شهادة راتب", "أحتاج شهادة راتب للتعريف بالبنك.", "hr", "سارة", 30, 0.7, "خالد", "موظف", "رد جاهز", CANNED.hr[1]);
+  done("سلفة على الراتب", "طلب سلفة بمبلغ 3000 ريال تُخصم على دفعتين.", "fin", "نورة", 50, 1.5, "سارة", "موظف", "ذكاء اصطناعي", CANNED.fin[2]);
+  done("تصميم بروشور الفعالية", "نحتاج تصميم بروشور لفعالية الشركة السنوية.", "ads", "خالد", 75, 5, "نورة", "موظف", "رد مخصص", "تم استلام الطلب، سيكون التصميم جاهزًا خلال يومين.");
+  done("تعويض ساعات إضافية", "طلب احتساب 6 ساعات عمل إضافي.", "hr", "سارة", 100, 3, "خالد", "موظف", "رد جاهز", CANNED.hr[0]);
+  done("طلب بدل سكن", "طلب صرف بدل السكن عن الشهر الحالي.", "fin", "خالد", 120, 2, "سارة", "موظف", "رد جاهز", CANNED.fin[0]);
+  done("إعلان وظيفة شاغرة", "نشر إعلان وظيفة محاسب على منصات التوظيف.", "ads", "خالد", 140, 4, "نورة", "موظف", "ذكاء اصطناعي", CANNED.ads[0]);
+  return {txs, notifs, seq: id, nseq: nid};
+}
+function load() { try { const s = localStorage.getItem(KEY); if (s) return JSON.parse(s); } catch (e) {} return seed(); }
+let S = load();
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+/* ---------- حالة الواجهة ---------- */
+let me = null;
+const V = {tab: "dash", id: null, q: "", fSt: "all", fDept: "all", fPri: "all", draft: "", note: "", ai: {}, aiBusy: false, polishBusy: false, hasSample: false, hasDl: false, bell: false, resetArm: false, err: "", brief: null, briefBusy: false, tone: "رسمي", routeBusy: false, route: null, simN: 0,
+  nd: {title: "", body: "", dept: "fin", pri: "normal", files: []}};
+
+/* ---------- أدوات ---------- */
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const tx = id => S.txs.find(t => t.id === id);
+function plural(n, one, two, few, many) { if (n === 1) return one; if (n === 2) return two; if (n <= 10) return n + " " + few; return n + " " + many; }
+function dur(ms) {
+  const m = Math.max(1, Math.round(ms / 60000));
+  if (m < 60) return plural(m, "دقيقة", "دقيقتين", "دقائق", "دقيقة");
+  const h = Math.round(m / 60);
+  if (h < 48) return plural(h, "ساعة", "ساعتين", "ساعات", "ساعة");
+  return plural(Math.round(h / 24), "يوم", "يومين", "أيام", "يومًا");
+}
+function ago(ms) { const d = Date.now() - ms; return d < 60000 ? "الآن" : "قبل " + dur(d); }
+function fdate(ms) { try { return new Date(ms).toLocaleString("ar-SA-u-ca-gregory-nu-latn", {day: "numeric", month: "short", hour: "numeric", minute: "2-digit"}); } catch (e) { return new Date(ms).toISOString(); } }
+function fsize(b) { return b > 1e6 ? (b / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1000)) + " KB"; }
+function ext(n) { const m = /\.([a-z0-9]+)$/i.exec(n); return m ? m[1].toUpperCase().slice(0, 4) : "FILE"; }
+function userByName(n) { return USERS.find(u => u.name === n); }
+function dueInfo(t) {
+  if (t.status === "done") return null;
+  const d = t.due - Date.now();
+  if (d < 0) return {cls: "bad", text: "متأخرة " + dur(-d)};
+  if (d < 4 * H) return {cls: "high", text: "متبقي " + dur(d)};
+  return {cls: "", text: "متبقي " + dur(d)};
+}
+function toast(m) {
+  const el = document.getElementById("toast"); el.firstElementChild.textContent = m; el.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, 2400);
+}
+
+/* ---------- الصلاحيات ---------- */
+function visible(t) {
+  if (me.level === 2) return true;
+  if (t.from === me.name) return true;
+  if (t.dept !== me.dept) return false;
+  return me.level === 1 ? t.level <= 1 : t.level === 0;
+}
+function canAct(t) { return t.status !== "done" && (me.level === 2 || (t.dept === me.dept && me.level >= t.level)); }
+function addLog(t, action, text, kind) { t.log.push({at: Date.now(), by: me.name, role: LV[me.level], action, text, kind}); }
+function notify(to, text, txId) {
+  const list = to.filter(Boolean); if (!list.length) return;
+  S.notifs.push({id: ++S.nseq, to: list, text, txId, at: Date.now(), read: []});
+}
+const mails = (level, dept) => USERS.filter(u => u.level === level && (level === 2 || u.dept === dept)).map(u => u.email);
+
+/* ---------- الإجراءات ---------- */
+function doReply(id, text, kind) {
+  const t = tx(id); text = (text || "").trim(); if (!t || !text) return;
+  addLog(t, "reply", text, kind); t.status = "done"; t.doneAt = Date.now();
+  const c = userByName(t.from); if (c && c.email !== me.email) notify([c.email], "تم الرد على معاملتك: " + t.title, t.id);
+  save(); V.draft = ""; V.note = ""; toast("تم إرسال الرد وإغلاق المعاملة"); render();
+}
+function doEscalate(id) {
+  const t = tx(id); if (!t || me.level >= 2) return;
+  t.level = Math.min(2, t.level + 1); t.status = "esc";
+  addLog(t, "escalate", V.note.trim() || "تم التحويل إلى " + LV[t.level]);
+  notify(mails(t.level, t.dept), "معاملة محولة إليك: " + t.title, t.id);
+  save(); V.note = ""; V.draft = ""; V.id = null; V.tab = "list"; toast("تم التحويل إلى " + LV[t.level]); render();
+}
+function addTx() {
+  const d = V.nd;
+  if (!d.title.trim() || !d.body.trim()) { V.err = "اكتب عنوان المعاملة وتفاصيلها قبل الإرسال."; render(); return; }
+  const id = ++S.seq, now = Date.now();
+  const t = {id, ref: "م-" + (1000 + id), title: d.title.trim(), body: d.body.trim(), dept: d.dept, from: me.name, priority: d.pri, createdAt: now, due: now + PRI[d.pri].h * H, level: 0, status: "new", attachments: d.files.slice(), log: []};
+  S.txs.push(t); addLog(t, "created", "تم إنشاء المعاملة");
+  notify(mails(0, t.dept).concat(mails(1, t.dept)).filter(e => e !== me.email), "معاملة جديدة: " + t.title, t.id);
+  save(); V.nd = {title: "", body: "", dept: me.dept || "fin", pri: "normal", files: []}; V.err = ""; V.route = null; V.id = id; V.tab = "detail"; toast("تم إرسال المعاملة"); render();
+}
+function unread() { return S.notifs.filter(n => n.to.includes(me.email) && !n.read.includes(me.email)); }
+function myNotifs() { return S.notifs.filter(n => n.to.includes(me.email)).sort((a, b) => b.at - a.at).slice(0, 8); }
+
+/* ---------- الذكاء الاصطناعي ---------- */
+function ruleAI(t) {
+  const txt = t.title + " " + t.body, m = txt.match(/(\d[\d,]*)\s*ريال/), amt = m ? parseInt(m[1].replace(/,/g, "")) : 0;
+  const c = CANNED[t.dept]; let reply = c[1], dec = "reply", why = "طلب اعتيادي ضمن صلاحية القسم.";
+  if ((t.dept === "fin" || t.dept === "ads") && amt >= 10000 && me.level < 2) { dec = "escalate"; why = "المبلغ (" + amt.toLocaleString("en-US") + " ريال) يتجاوز صلاحية المستوى الحالي."; reply = "تم رفع طلبكم إلى الإدارة المختصة للاعتماد، وسنوافيكم بالنتيجة فور صدور القرار."; }
+  else if (t.dept === "fin") reply = c[2];
+  else if (t.dept === "hr" && /إجازة/.test(txt)) reply = c[0];
+  else if (t.dept === "ads") reply = c[0];
+  return {summary: t.body.length > 90 ? t.body.slice(0, 90) + "..." : t.body, decision: dec, reason: why, reply};
+}
+async function getSample() { try { return window.claude && window.claude.use ? await window.claude.use("sample") : null; } catch (e) { return null; } }
+async function runAI(id) {
+  const t = tx(id); if (!t) return; V.aiBusy = true; render();
+  let res = null, mode = "sim";
+  try {
+    const sample = await getSample();
+    if (sample) {
+      const prompt = "أنت مساعد داخل نظام معاملات شركة. حلّل المعاملة وأجب بكائن JSON فقط، بلا شرح وبلا علامات كود، بهذا الشكل بالضبط: " +
+        '{"summary":"ملخص بجملة واحدة","decision":"reply أو escalate","reason":"سبب القرار بجملة واحدة","reply":"نص رد رسمي ومهذب وموجز"}\n' +
+        "القواعد: المعاملات المالية أو الإعلانية التي تتجاوز 10000 ريال تُحوَّل للمستوى الأعلى (escalate). غير ذلك يرد عليه المستخدم (reply). إذا كان المستخدم هو المدير العام فالقرار دائمًا reply.\n" +
+        "القسم: " + DEPTS[t.dept] + "\nرتبة المستخدم الحالي: " + LV[me.level] + "\nالأولوية: " + PRI[t.priority].n +
+        "\nالعنوان: " + t.title + "\nالتفاصيل: " + t.body + "\nالمرفقات: " + (t.attachments.map(a => a.name).join("، ") || "لا يوجد") +
+        "\nصيغ ردود معتمدة يمكن الاستئناس بها: " + CANNED[t.dept].join(" | ");
+      const out = await sample(prompt, {modelTier: "quick"});
+      const txt = (out && out.text) || "", a = txt.indexOf("{"), b = txt.lastIndexOf("}");
+      const j = JSON.parse(txt.slice(a, b + 1));
+      if (j && j.reply && j.summary) { res = {summary: String(j.summary), decision: j.decision === "escalate" && me.level < 2 ? "escalate" : "reply", reason: String(j.reason || ""), reply: String(j.reply)}; mode = "claude"; }
+    }
+  } catch (e) { res = null; }
+  if (!res) res = ruleAI(t);
+  res.mode = mode; V.ai[id + ":" + t.level] = res; V.aiBusy = false; render();
+}
+async function polish() {
+  if (!V.draft.trim()) { toast("اكتب مسودة الرد أولًا"); return; }
+  const sample = await getSample(); if (!sample) { toast("الذكاء الاصطناعي غير متاح هنا"); return; }
+  V.polishBusy = true; render();
+  try {
+    const toneTxt = {"رسمي": "رسميًا ومهذبًا", "مختصر": "مختصرًا جدًا ومباشرًا (جملة أو جملتان)", "ودّي": "ودّيًا ولطيفًا مع الحفاظ على الاحترام"}[V.tone] || "رسميًا ومهذبًا";
+    const out = await sample("أعد صياغة الرد التالي باللغة العربية ليكون " + toneTxt + "، دون تغيير المعنى أو إضافة وعود جديدة. أجب بنص الرد فقط:\n" + V.draft, {modelTier: "quick"});
+    if (out && out.text) V.draft = out.text.trim();
+  } catch (e) { toast("تعذّر تحسين الصياغة"); }
+  V.polishBusy = false; render();
+}
+
+/* ---------- أفكار جديدة ---------- */
+function ruleBrief(items) {
+  const open = items.filter(t => t.status !== "done"), now = Date.now();
+  const over = open.filter(t => t.due < now), urg = open.filter(t => t.priority === "urgent");
+  const wait = open.filter(canAct).sort((a, b) => a.due - b.due);
+  const dn = items.filter(t => t.doneAt), avg = dn.length ? dn.reduce((s, t) => s + (t.doneAt - t.createdAt), 0) / dn.length : 0;
+  const byD = {}; open.forEach(t => { byD[t.dept] = (byD[t.dept] || 0) + 1; });
+  const top = Object.keys(byD).sort((a, b) => byD[b] - byD[a])[0];
+  const points = ["لديك " + wait.length + " معاملة بانتظار إجراءك من أصل " + open.length + " معاملة مفتوحة."];
+  if (over.length) points.push(over.length + " منها متأخرة عن موعدها النهائي.");
+  if (urg.length) points.push(urg.length + " معاملة عاجلة تحتاج متابعة.");
+  if (top) points.push("أكثر قسم عليه ضغط: " + DEPTS[top] + " (" + byD[top] + " معاملة مفتوحة).");
+  if (dn.length) points.push("متوسط زمن الرد على المعاملات المنتهية: " + dur(avg) + ".");
+  const headline = over.length ? "يوجد " + over.length + " معاملة متأخرة وتحتاج انتباهًا اليوم." : open.length ? "الوضع تحت السيطرة، ولا توجد معاملات متأخرة." : "لا توجد معاملات مفتوحة.";
+  return {headline, points: points.slice(0, 4), actions: wait.slice(0, 3).map(t => ({id: t.id, text: t.title})), mode: "sim", at: now};
+}
+async function runBrief() {
+  const items = S.txs.filter(visible); V.briefBusy = true; render();
+  let res = null;
+  try {
+    const sample = await getSample();
+    if (sample) {
+      const rows = items.filter(t => t.status !== "done").map(t => "- [" + t.id + "] " + t.title + " | " + DEPTS[t.dept] + " | " + PRI[t.priority].n + " | " + ST[t.status] + " | عند " + LV[t.level] + " | " + (t.due < Date.now() ? "متأخرة" : "متبقي " + dur(t.due - Date.now()))).join("\n");
+      const prompt = "أنت مساعد تنفيذي يكتب ملخصًا صباحيًا موجزًا لمسؤول في شركة، بالعربية. أجب بكائن JSON فقط بلا علامات كود وبهذا الشكل بالضبط: " +
+        '{"headline":"جملة واحدة تلخص الوضع","points":["من 3 إلى 4 نقاط قصيرة"],"actions":[{"id":0,"text":"إجراء مقترح قصير"}]}' +
+        "\nاقترح حتى 3 إجراءات مرتبة بالأهمية، واستعمل في id أرقام المعاملات المذكورة بين الأقواس المربعة فقط.\nرتبة المستخدم: " + LV[me.level] + (me.dept ? " - " + DEPTS[me.dept] : "") +
+        "\nالمعاملات المفتوحة:\n" + rows + "\nعدد المعاملات المنتهية: " + items.filter(t => t.doneAt).length;
+      const out = await sample(prompt, {modelTier: "quick"});
+      const txt = (out && out.text) || "", a = txt.indexOf("{"), b = txt.lastIndexOf("}");
+      const j = JSON.parse(txt.slice(a, b + 1));
+      if (j && j.headline && Array.isArray(j.points)) {
+        res = {headline: String(j.headline), points: j.points.slice(0, 4).map(String), mode: "claude", at: Date.now(),
+          actions: (Array.isArray(j.actions) ? j.actions : []).filter(x => x && tx(Number(x.id)) && visible(tx(Number(x.id)))).slice(0, 3).map(x => ({id: Number(x.id), text: String(x.text || tx(Number(x.id)).title)}))};
+      }
+    }
+  } catch (e) { res = null; }
+  V.brief = Object.assign(res || ruleBrief(items), {email: me.email}); V.briefBusy = false; render();
+}
+function briefHtml() {
+  const b = (V.brief && V.brief.email === me.email) ? V.brief : ruleBrief(S.txs.filter(visible));
+  return '<div class="brief"><div class="row" style="justify-content:space-between"><h2>ملخص اليوم</h2><div class="row"><span class="tag">' + (b.mode === "claude" ? "Claude · " + ago(b.at) : "ملخص آلي") + "</span>" +
+    (V.hasSample ? '<button class="btn sm" data-a="brief"' + (V.briefBusy ? " disabled" : "") + ">" + (V.briefBusy ? '<span class="spin"></span>' : "") + "اكتب الملخص بالذكاء الاصطناعي</button>" : "") +
+    (V.hasDl ? '<button class="btn ghost sm" data-a="export">تصدير تقرير CSV</button>' : "") + "</div></div>" +
+    '<div class="hl">' + esc(b.headline) + "</div><ul>" + b.points.map(p => "<li>" + esc(p) + "</li>").join("") + "</ul>" +
+    (b.actions.length ? '<div class="mut small">الإجراءات المقترحة</div><div class="acts">' + b.actions.map(a => '<button class="act" data-a="open" data-id="' + a.id + '">' + esc(a.text) + "</button>").join("") + "</div>" : "") + "</div>";
+}
+function teamHtml() {
+  const m = {};
+  S.txs.filter(visible).forEach(t => t.log.forEach(l => { if (l.action === "reply") { const x = m[l.by] || (m[l.by] = {n: 0, ms: 0, q: 0}); x.n++; x.ms += l.at - t.createdAt; if (l.kind === "رد جاهز" || l.kind === "ذكاء اصطناعي") x.q++; } }));
+  const rows = Object.keys(m).map(k => Object.assign({name: k}, m[k])).sort((a, b) => b.n - a.n);
+  if (!rows.length) return "";
+  const mx = Math.max.apply(null, rows.map(r => r.n));
+  return '<div class="card"><h2>أداء الفريق</h2><div class="mut small">عدد الردود، ومتوسط زمن الرد، ونسبة الردود السريعة</div><div style="margin-top:8px">' +
+    rows.map(r => '<div class="lb"><span>' + esc(r.name) + '</span><div class="track"><i style="width:' + (r.n / mx * 100) + '%"></i></div><span class="num small">' + r.n + " رد · " + dur(r.ms / r.n) + " · " + Math.round(r.q / r.n * 100) + "% سريعة</span></div>").join("") + "</div></div>";
+}
+function ringHtml(t) {
+  const done = t.status === "done", end = done ? (t.doneAt || Date.now()) : Date.now();
+  const total = Math.max(1, t.due - t.createdAt), p = Math.max(0, Math.min(1, (end - t.createdAt) / total)), over = end > t.due;
+  const col = done ? (over ? "--warn" : "--good") : over ? "--bad" : p > 0.75 ? "--warn" : "--accent";
+  const C = 2 * Math.PI * 28, label = done ? (over ? "متأخر" : "في الوقت") : over ? "متأخرة" : Math.round((1 - p) * 100) + "%";
+  return '<div class="ring" title="الوقت المتبقي من مهلة الرد"><svg width="70" height="70" viewBox="0 0 70 70" aria-hidden="true"><circle cx="35" cy="35" r="28" fill="none" stroke-width="7" style="stroke:var(--line)"/><circle cx="35" cy="35" r="28" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - p)).toFixed(1) + '" style="stroke:var(' + col + ')"/></svg><b>' +
+    label + (!done && !over ? '<br><span class="mut" style="font-size:10px;font-family:var(--font-body)">متبقي</span>' : "") + "</b></div>";
+}
+function ruleRoute(title, body) {
+  const txt = title + " " + body;
+  const kw = {hr: /إجاز|راتب|موظف|توظيف|شهادة|ساعات إضافية|تعويض|وظيف|استقالة|دوام/g, ads: /حملة|إعلان|تصميم|تسويق|بروشور|مؤثر|نشر|شعار|هوية|محتوى/g, fin: /صرف|فاتورة|ميزانية|ريال|سلفة|عهدة|دفع|مصروف|مستحقات|تسوية/g};
+  let best = "fin", n = -1;
+  Object.keys(kw).forEach(k => { const c = (txt.match(kw[k]) || []).length; if (c > n) { n = c; best = k; } });
+  const m = txt.match(/(\d[\d,]*)\s*ريال/), amt = m ? parseInt(m[1].replace(/,/g, "")) : 0;
+  let pri = "normal", why = "طلب اعتيادي.";
+  if (/عاجل|فورًا|فورا|اليوم|ضروري|حالًا/.test(txt)) { pri = "urgent"; why = "النص يدل على الاستعجال."; }
+  else if (amt >= 10000) { pri = "high"; why = "مبلغ كبير (" + amt.toLocaleString("en-US") + " ريال)."; }
+  return {dept: best, pri, why, mode: "sim"};
+}
+async function runRoute() {
+  const d = V.nd;
+  if (!d.title.trim() && !d.body.trim()) { V.err = "اكتب العنوان أو التفاصيل أولًا ليتمكن المساعد من التصنيف."; render(); return; }
+  V.err = ""; V.routeBusy = true; render();
+  let r = null;
+  try {
+    const sample = await getSample();
+    if (sample) {
+      const prompt = "صنّف معاملة داخل شركة. أجب بكائن JSON فقط بلا علامات كود: " + '{"dept":"fin أو hr أو ads","priority":"urgent أو high أو normal","reason":"سبب مختصر بجملة واحدة بالعربية"}' +
+        "\nالأقسام: fin = المالية (صرف، فواتير، ميزانيات، سلف)، hr = الموارد البشرية (إجازات، رواتب، توظيف)، ads = الإعلان (حملات، تصاميم، تسويق).\nالأولوية: urgent إذا كانت عاجلة صراحة، high إذا كان المبلغ 10000 ريال أو أكثر أو الأثر كبيرًا، وإلا normal.\nالعنوان: " + d.title + "\nالتفاصيل: " + d.body;
+      const out = await sample(prompt, {modelTier: "quick"});
+      const txt = (out && out.text) || "", a = txt.indexOf("{"), b = txt.lastIndexOf("}");
+      const j = JSON.parse(txt.slice(a, b + 1));
+      if (DEPTS[j.dept] && PRI[j.priority]) r = {dept: j.dept, pri: j.priority, why: String(j.reason || ""), mode: "claude"};
+    }
+  } catch (e) { r = null; }
+  r = r || ruleRoute(d.title, d.body);
+  d.dept = r.dept; d.pri = r.pri; V.route = r; V.routeBusy = false; render();
+}
+const INCOMING = {
+  fin: [["طلب صرف مستحقات مورد", "المورد يطلب صرف مستحقاته عن خدمات الشهر الماضي بمبلغ 7500 ريال.", "normal"], ["اعتماد مصروفات سفر", "اعتماد مصروفات سفر وفد الشركة بمبلغ 24000 ريال شاملة الإقامة.", "high"], ["تسوية عهدة سابقة", "طلب تسوية عهدة سابقة بمبلغ 1800 ريال مع إرفاق الفواتير.", "normal"]],
+  hr: [["طلب إجازة اضطرارية", "أحتاج إجازة اضطرارية يومين بسبب ظرف عائلي طارئ.", "urgent"], ["شهادة خبرة", "أرجو إصدار شهادة خبرة لموظف منتهية خدماته.", "normal"], ["تعديل بيانات وظيفية", "طلب تعديل المسمى الوظيفي بعد الترقية الأخيرة.", "normal"]],
+  ads: [["تصميم هوية حملة الشتاء", "نحتاج تصميم هوية بصرية لحملة الشتاء بميزانية 15000 ريال.", "high"], ["اعتماد نص إعلان", "أرجو اعتماد نص الإعلان قبل النشر غدًا.", "urgent"], ["تغطية فعالية الشركة", "طلب تغطية إعلامية لفعالية الشركة السنوية.", "normal"]]
+};
+function simulate() {
+  const dept = me.dept || Object.keys(DEPTS)[V.simN % 3], list = INCOMING[dept], pick = list[V.simN % list.length];
+  const senders = ["سارة", "خالد", "نورة"].filter(n => n !== me.name), from = senders[V.simN % senders.length];
+  V.simN++;
+  const id = ++S.seq, now = Date.now(), gm = me.level === 2;
+  const t = {id, ref: "م-" + (1000 + id), title: pick[0], body: pick[1], dept, from, priority: pick[2], createdAt: now, due: now + PRI[pick[2]].h * H, level: gm ? 2 : 0, status: gm ? "esc" : "new", attachments: [], log: []};
+  S.txs.push(t);
+  t.log.push({at: now, by: from, role: "موظف", action: "created", text: "تم إنشاء المعاملة"});
+  if (gm) { t.log.push({at: now, by: "مدير " + DEPTS[dept], role: "مدير قسم", action: "escalate", text: "تحويل للاعتماد."}); notify(mails(2), "معاملة محولة إليك: " + t.title, id); }
+  else notify(mails(0, dept).concat(mails(1, dept)), "معاملة جديدة: " + t.title, id);
+  save(); toast("وصلت معاملة جديدة: " + t.title); render();
+}
+async function exportCsv() {
+  const items = S.txs.filter(visible).sort((a, b) => a.id - b.id);
+  const q = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"', f = ms => new Date(ms).toISOString().slice(0, 16).replace("T", " ");
+  const head = ["الرقم", "العنوان", "القسم", "المرسل", "الحالة", "الأولوية", "عند", "تاريخ الإنشاء", "الموعد النهائي", "زمن الرد (ساعات)"];
+  const rows = items.map(t => [t.ref, t.title, DEPTS[t.dept], t.from, ST[t.status], PRI[t.priority].n, LV[t.level], f(t.createdAt), f(t.due), t.doneAt ? ((t.doneAt - t.createdAt) / H).toFixed(1) : ""]);
+  const csv = "﻿" + [head].concat(rows).map(r => r.map(q).join(",")).join("\r\n");
+  try {
+    const d = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
+    if (!d) { toast("التصدير غير متاح هنا"); return; }
+    await d.save({filename: "تقرير-المعاملات.csv", data: csv});
+    toast("تم تجهيز التقرير");
+  } catch (e) { if (!e || e.code !== "declined") toast("تعذّر تصدير التقرير"); }
+}
+
+/* ---------- العرض ---------- */
+const Q = s => document.querySelector(s);
+function render() {
+  const app = Q("#app");
+  if (!me) { app.innerHTML = loginView(); return; }
+  let body;
+  if (V.tab === "detail" && tx(V.id)) body = detailView(tx(V.id));
+  else if (V.tab === "new") body = newView();
+  else if (V.tab === "list") body = listView();
+  else body = dashView();
+  app.innerHTML = '<div class="shell">' + header() + body + "</div>";
+}
+
+function loginView() {
+  const grp = (lv, label) => '<h3 class="mut small" style="margin-top:6px">' + label + '</h3><div class="demo">' + USERS.filter(u => u.level === lv).map(u =>
+    '<button data-a="login" data-email="' + u.email + '"><b>' + esc(u.name) + "</b><small>" + LV[u.level] + (u.dept ? " · " + DEPTS[u.dept] : "") + "</small></button>").join("") + "</div>";
+  return '<div class="shell"><div class="top"><div class="brand"><div class="logo">م</div><b>نظام المعاملات</b></div></div>' +
+    '<div class="login"><div class="card pane"><h2>اختصر الرد على المعاملات وتحويلها للإدارة العليا</h2>' +
+    '<ul class="feat"><li>حساب لكل موظف، وصلاحيات حسب الرتبة والقسم</li><li>ردود جاهزة بضغطة زر لكل قسم</li><li>تحليل المعاملة واقتراح رد وقرار التحويل بالذكاء الاصطناعي</li><li>تتبع كامل لكل معاملة، وأولويات ومواعيد استحقاق</li><li>لوحة مؤشرات توضح الزمن الموفّر</li></ul>' +
+    '<p class="mut small">نسخة تجريبية. البيانات تُحفظ في هذا المتصفح فقط.</p></div>' +
+    '<div class="card pane"><h2>تسجيل الدخول</h2>' +
+    '<label class="f">البريد الإلكتروني<input id="em" dir="ltr" autocomplete="off" placeholder="sara@co.com"></label>' +
+    '<label class="f">كلمة المرور<input id="pw" type="password" dir="ltr" placeholder="1234"></label>' +
+    (V.err ? '<div class="tag bad">' + esc(V.err) + "</div>" : "") +
+    '<button class="btn" data-a="loginform">دخول</button>' +
+    '<h3 style="margin-top:10px">أو ادخل بحساب تجريبي مباشرة</h3>' + grp(0, "موظفون") + grp(1, "مدراء الأقسام") + grp(2, "الإدارة العليا") +
+    '<p class="mut small">كلمة المرور لكل الحسابات التجريبية: 1234</p>' +
+    '<button class="btn ghost sm" data-a="reset" style="align-self:flex-start">' + (V.resetArm ? "تأكيد: مسح كل التعديلات" : "إعادة ضبط بيانات العرض") + "</button></div></div></div>";
+}
+
+function header() {
+  const un = unread(), notifs = myNotifs();
+  const opts = USERS.map(u => '<option value="' + u.email + '"' + (u.email === me.email ? " selected" : "") + ">" + esc(u.name) + " · " + LV[u.level] + (u.dept ? " · " + DEPTS[u.dept] : "") + "</option>").join("");
+  const drop = V.bell ? '<div class="drop">' + (notifs.length ? notifs.map(n => '<button class="it' + (n.read.includes(me.email) ? "" : " unread") + '" data-a="opennotif" data-nid="' + n.id + '" data-id="' + n.txId + '"><div>' + esc(n.text) + '</div><div class="mut small">' + ago(n.at) + "</div></button>").join("") : '<div class="empty small">لا توجد إشعارات.</div>') + "</div>" : "";
+  const tab = (k, l) => '<button class="tab" role="tab" data-a="tab" data-tab="' + k + '" aria-selected="' + (V.tab === k || (V.tab === "detail" && k === "list") ? "true" : "false") + '">' + l + "</button>";
+  return '<div class="card flat"><div class="top"><div class="brand"><div class="logo">م</div><div><b>نظام المعاملات</b><div class="mut small">' + esc(me.name) + " · " + LV[me.level] + (me.dept ? " · " + DEPTS[me.dept] : "") + '</div></div></div>' +
+    '<div class="who"><select data-change="switch" aria-label="تبديل الحساب">' + opts + "</select>" +
+    '<div class="bellwrap"><button class="iconbtn" data-a="bell" aria-label="الإشعارات"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>' + (un.length ? '<span class="badge">' + un.length + "</span>" : "") + "</button>" + drop + "</div>" +
+    '<button class="btn ghost sm" data-a="sim" title="لتجربة العرض: تصل معاملة وإشعار جديد فورًا">محاكاة وصول معاملة</button><button class="btn ghost sm" data-a="logout">خروج</button></div></div>' +
+    '<div class="tabs" role="tablist" style="margin-top:12px">' + tab("dash", "لوحة المؤشرات") + tab("list", "المعاملات") + tab("new", "معاملة جديدة") + "</div></div>";
+}
+
+function tags(t) {
+  const d = dueInfo(t);
+  return '<span class="tag ' + t.status + '">' + ST[t.status] + "</span>" + (t.priority !== "normal" ? '<span class="tag ' + t.priority + '">' + PRI[t.priority].n + "</span>" : "") +
+    (d ? '<span class="tag ' + d.cls + '">' + d.text + "</span>" : "");
+}
+function rowHtml(t) {
+  return '<div class="item" data-a="open" data-id="' + t.id + '"><div class="grow"><div class="it-title">' + esc(t.title) + '</div><div class="mut small">' + t.ref + " · " + DEPTS[t.dept] + " · من " + esc(t.from) + " · " + ago(t.createdAt) +
+    (t.attachments.length ? " · " + t.attachments.length + " مرفق" : "") + " · عند: " + LV[t.level] + '</div></div><div class="tags">' + tags(t) + "</div></div>";
+}
+
+function dashView() {
+  const items = S.txs.filter(visible), open = items.filter(t => t.status !== "done"), done = items.filter(t => t.status === "done");
+  const mine = open.filter(canAct).sort((a, b) => a.due - b.due);
+  const over = open.filter(t => t.due < Date.now()).length, urg = open.filter(t => t.priority === "urgent").length;
+  const dn = done.filter(t => t.doneAt), avg = dn.length ? dn.reduce((s, t) => s + (t.doneAt - t.createdAt), 0) / dn.length : 0;
+  let quick = 0; items.forEach(t => t.log.forEach(l => { if (l.action === "reply" && (l.kind === "رد جاهز" || l.kind === "ذكاء اصطناعي")) quick++; }));
+  const saved = quick * MIN_SAVED, savedTxt = saved >= 60 ? (saved / 60).toFixed(1) + " ساعة" : saved + " دقيقة";
+  const nNew = items.filter(t => t.status === "new").length, nEsc = items.filter(t => t.status === "esc").length, nDone = done.length, tot = Math.max(1, items.length);
+  const seg = (n, c) => n ? '<i style="width:' + (n / tot * 100) + "%;background:var(" + c + ')"></i>' : "";
+  const depts = Object.keys(DEPTS).map(k => ({k, o: items.filter(t => t.dept === k && t.status !== "done").length, d: items.filter(t => t.dept === k && t.status === "done").length})).filter(x => x.o + x.d > 0);
+  const dmax = Math.max(1, ...depts.map(x => x.o + x.d));
+  const day0 = new Date(); day0.setHours(0, 0, 0, 0);
+  const days = [];
+  for (let i = 6; i >= 0; i--) { const s = day0.getTime() - i * 864e5, e = s + 864e5; days.push({lbl: new Date(s).toLocaleDateString("ar-SA-u-ca-gregory", {weekday: "short"}), c: items.filter(t => t.createdAt >= s && t.createdAt < e).length, d: items.filter(t => t.doneAt && t.doneAt >= s && t.doneAt < e).length}); }
+  const pmax = Math.max(1, ...days.map(d => Math.max(d.c, d.d)));
+  const bar = (n, col) => '<div class="b" style="height:' + (n ? Math.max(6, n / pmax * 100) : 0) + "%;background:var(" + col + ')">' + (n ? "<span>" + n + "</span>" : "") + "</div>";
+  const feed = []; items.forEach(t => t.log.forEach(l => feed.push({l, t}))); feed.sort((a, b) => b.l.at - a.l.at);
+  const lbl = {created: "أنشأ", reply: "ردّ على", escalate: "حوّل"};
+  return briefHtml() + '<div class="tiles">' +
+    '<div class="tile"><span class="v num">' + mine.length + '</span><span class="l">تحتاج إجراءك الآن</span></div>' +
+    '<div class="tile' + (over ? " alert" : "") + '"><span class="v num">' + over + '</span><span class="l">معاملات متأخرة</span></div>' +
+    '<div class="tile"><span class="v num">' + urg + '</span><span class="l">عاجلة مفتوحة</span></div>' +
+    '<div class="tile"><span class="v num">' + (dn.length ? dur(avg) : "—") + '</span><span class="l">متوسط زمن الرد</span></div>' +
+    '<div class="tile"><span class="v num">' + savedTxt + '</span><span class="l">وقت موفّر (تقدير ' + MIN_SAVED + " د لكل رد سريع)</span></div></div>" +
+    '<div class="cols"><div class="card"><div class="row" style="justify-content:space-between"><h2>تحتاج إجراءك</h2><button class="btn ghost sm" data-a="tab" data-tab="list">كل المعاملات</button></div>' +
+    (mine.length ? mine.slice(0, 5).map(rowHtml).join("") : '<div class="empty">لا توجد معاملات بانتظارك.</div>') + "</div>" +
+    '<div class="card"><h2>حالة المعاملات</h2><div class="stack" style="margin-top:12px">' + seg(nNew, "--accent") + seg(nEsc, "--warn") + seg(nDone, "--good") + "</div>" +
+    '<div class="legend"><span><i class="dot" style="background:var(--accent)"></i>جديدة ' + nNew + '</span><span><i class="dot" style="background:var(--warn)"></i>محولة ' + nEsc + '</span><span><i class="dot" style="background:var(--good)"></i>تم الرد ' + nDone + "</span></div>" +
+    '<h3 style="margin-top:20px">حسب القسم</h3>' + depts.map(x => '<div class="hbar"><span>' + DEPTS[x.k] + '</span><div class="track"><i style="width:' + (x.o / dmax * 100) + '%;background:var(--accent)"></i><i style="width:' + (x.d / dmax * 100) + '%;background:var(--good)"></i></div><span class="num">' + (x.o + x.d) + "</span></div>").join("") +
+    '<div class="legend"><span><i class="dot" style="background:var(--accent)"></i>مفتوحة</span><span><i class="dot" style="background:var(--good)"></i>منتهية</span></div></div></div>' +
+    '<div class="cols"><div class="card"><h2>آخر 7 أيام</h2><div class="days">' + days.map(d => '<div class="day"><div class="bars">' + bar(d.c, "--accent") + bar(d.d, "--good") + "</div><small>" + d.lbl + "</small></div>").join("") + "</div>" +
+    '<div class="legend"><span><i class="dot" style="background:var(--accent)"></i>واردة</span><span><i class="dot" style="background:var(--good)"></i>تم الرد</span></div></div>' +
+    '<div class="card"><h2>آخر النشاطات</h2><div class="feed" style="margin-top:10px">' + (feed.slice(0, 6).map(f => "<div><b>" + esc(f.l.by) + "</b> " + lbl[f.l.action] + " «" + esc(f.t.title) + '» <span class="mut small">' + ago(f.l.at) + "</span></div>").join("") || '<div class="mut">لا نشاط بعد.</div>') + "</div></div></div>" + (me.level >= 1 ? teamHtml() : "");
+}
+
+function listBody() {
+  const q = V.q.trim();
+  let items = S.txs.filter(visible);
+  if (V.fSt !== "all") items = items.filter(t => t.status === V.fSt);
+  if (V.fDept !== "all") items = items.filter(t => t.dept === V.fDept);
+  if (V.fPri !== "all") items = items.filter(t => t.priority === V.fPri);
+  if (q) items = items.filter(t => (t.title + " " + t.body + " " + t.ref + " " + t.from).includes(q));
+  const rank = {urgent: 0, high: 1, normal: 2};
+  items.sort((a, b) => (a.status === "done") - (b.status === "done") || rank[a.priority] - rank[b.priority] || a.due - b.due);
+  return items.length ? items.map(rowHtml).join("") : '<div class="empty">لا توجد معاملات مطابقة.</div>';
+}
+function listView() {
+  const sel = (key, arr) => '<select data-change="' + key + '">' + arr.map(a => '<option value="' + a[0] + '"' + (V[key] === a[0] ? " selected" : "") + ">" + a[1] + "</option>").join("") + "</select>";
+  return '<div class="card"><div class="filters"><input class="search" data-in="q" value="' + esc(V.q) + '" placeholder="ابحث بالعنوان أو الرقم أو اسم المرسل" aria-label="بحث">' +
+    sel("fSt", [["all", "كل الحالات"], ["new", "جديدة"], ["esc", "محولة"], ["done", "تم الرد"]]) +
+    sel("fDept", [["all", "كل الأقسام"], ["fin", "المالية"], ["hr", "الموارد البشرية"], ["ads", "الإعلان"]]) +
+    sel("fPri", [["all", "كل الأولويات"], ["urgent", "عاجلة"], ["high", "مهمة"], ["normal", "عادية"]]) +
+    '</div><div id="listBody" style="margin-top:8px">' + listBody() + "</div></div>";
+}
+
+function newView() {
+  const d = V.nd;
+  return '<div class="card"><h2>معاملة جديدة</h2><div style="display:flex;flex-direction:column;gap:12px;margin-top:12px">' +
+    '<label class="f">عنوان المعاملة<input id="nt" data-in="nd.title" value="' + esc(d.title) + '"></label>' +
+    '<label class="f">التفاصيل<textarea id="nb" data-in="nd.body">' + esc(d.body) + "</textarea></label>" +
+    '<div class="row"><button class="btn ghost" data-a="route"' + (V.routeBusy ? " disabled" : "") + ">" + (V.routeBusy ? '<span class="spin"></span>' : "") + 'صنّف بالذكاء الاصطناعي</button><span class="mut small">يحدد القسم والأولوية من نص المعاملة</span></div>' +
+    (V.route ? '<div class="route"><b>تم التصنيف:</b> ' + DEPTS[V.route.dept] + " · " + PRI[V.route.pri].n + " — " + esc(V.route.why) + ' <span class="tag">' + (V.route.mode === "claude" ? "Claude" : "وضع المحاكاة") + "</span></div>" : "") +
+    '<div class="grid2"><label class="f">القسم المختص<select data-change="nd.dept">' + Object.keys(DEPTS).map(k => '<option value="' + k + '"' + (d.dept === k ? " selected" : "") + ">" + DEPTS[k] + "</option>").join("") + "</select></label>" +
+    '<label class="f">الأولوية<select data-change="nd.pri">' + Object.keys(PRI).map(k => '<option value="' + k + '"' + (d.pri === k ? " selected" : "") + ">" + PRI[k].n + " (الرد خلال " + PRI[k].h + " ساعة)</option>").join("") + "</select></label></div>" +
+    '<label class="f">المرفقات<input type="file" id="nf" multiple data-change="files"></label>' +
+    (d.files.length ? '<div class="files">' + d.files.map((f, i) => '<span class="file"><em>' + ext(f.name) + "</em>" + esc(f.name) + ' <span class="mut">' + fsize(f.size) + '</span><button class="btn ghost sm" data-a="rmfile" data-i="' + i + '" aria-label="حذف المرفق">×</button></span>').join("") + "</div>" : "") +
+    (V.err ? '<div class="tag bad">' + esc(V.err) + "</div>" : "") +
+    '<div class="row"><button class="btn" data-a="addtx">إرسال المعاملة</button><button class="btn ghost" data-a="tab" data-tab="list">إلغاء</button></div></div></div>';
+}
+
+function detailView(t) {
+  const act = canAct(t), ai = V.ai[t.id + ":" + t.level], di = dueInfo(t);
+  const log = t.log.map(l => '<li class="' + l.action + '"><div><b>' + esc(l.by) + '</b> <span class="mut small">' + esc(l.role) + " · " + fdate(l.at) + "</span> " +
+    (l.action === "created" ? "" : l.action === "escalate" ? '<span class="tag esc">تحويل</span>' : '<span class="tag done">' + esc(l.kind || "رد") + "</span>") + "</div>" +
+    (l.action === "created" ? '<div class="mut small">أنشأ المعاملة</div>' : '<div class="q">' + esc(l.text) + "</div>") + "</li>").join("");
+  let aiBox = "";
+  if (act) {
+    if (V.aiBusy) aiBox = '<div class="ai"><span class="spin"></span>جارٍ تحليل المعاملة...</div>';
+    else if (ai) aiBox = '<div class="ai"><div class="row" style="justify-content:space-between"><b>تحليل الذكاء الاصطناعي</b><span class="tag">' + (ai.mode === "claude" ? "Claude" : "وضع المحاكاة") + "</span></div>" +
+      '<div class="box"><div class="mut small">الملخص</div>' + esc(ai.summary) + "</div>" +
+      '<div class="box"><div class="mut small">التوصية</div><b>' + (ai.decision === "escalate" ? "تحويل للإدارة الأعلى" : "الرد مباشرة") + "</b> · " + esc(ai.reason) + "</div>" +
+      '<div class="box"><div class="mut small">الرد المقترح</div>' + esc(ai.reply) + "</div>" +
+      '<div class="row"><button class="btn good" data-a="aireply">إرسال هذا الرد</button>' + (ai.decision === "escalate" && me.level < 2 ? '<button class="btn warn" data-a="escalate">تحويل للأعلى</button>' : "") +
+      '<button class="btn ghost" data-a="aiedit">تعديل قبل الإرسال</button><button class="btn ghost" data-a="airun">إعادة التحليل</button></div></div>';
+    else aiBox = '<div class="ai"><div class="row" style="justify-content:space-between"><div><b>المساعد الذكي</b><div class="mut small">يلخّص المعاملة، ويقترح رد، ويوصي بالرد أو التحويل.</div></div><button class="btn" data-a="airun">حلّل المعاملة</button></div></div>';
+  }
+  const actions = act ? '<div class="card">' + aiBox +
+    '<h3 style="margin-top:18px">ردود جاهزة (ضغطة واحدة)</h3>' + CANNED[t.dept].map((c, i) => '<div class="canned"><span>' + esc(c) + '</span><button class="btn sm" data-a="canned" data-i="' + i + '">إرسال</button></div>').join("") +
+    '<h3 style="margin-top:18px">رد مخصص</h3><textarea id="cr" data-in="draft" placeholder="اكتب ردك هنا">' + esc(V.draft) + "</textarea>" +
+    (V.hasSample ? '<div class="chips" style="margin-top:8px"><span class="mut small">نبرة الصياغة:</span>' + ["رسمي", "مختصر", "ودّي"].map(x => '<button class="chip" data-a="tone" data-t="' + x + '" aria-pressed="' + (V.tone === x) + '">' + x + "</button>").join("") + "</div>" : "") +
+    '<div class="row" style="margin-top:8px"><button class="btn good" data-a="custom">إرسال الرد</button>' + (V.hasSample ? '<button class="btn ghost" data-a="polish"' + (V.polishBusy ? " disabled" : "") + ">" + (V.polishBusy ? '<span class="spin"></span>' : "") + "حسّن الصياغة</button>" : "") + "</div>" +
+    (me.level < 2 ? '<h3 style="margin-top:18px">تحويل للإدارة الأعلى</h3><textarea id="nt2" data-in="note" placeholder="ملاحظة للمستوى الأعلى (اختياري)" style="min-height:64px">' + esc(V.note) + '</textarea><div style="margin-top:8px"><button class="btn warn" data-a="escalate">تحويل إلى ' + LV[t.level + 1] + "</button></div>" : "") + "</div>" : "";
+  return '<div class="card"><button class="btn ghost sm" data-a="tab" data-tab="list">رجوع للمعاملات</button>' +
+    '<div class="titlerow"><div class="grow"><h2>' + esc(t.title) + '</h2><div class="tags" style="margin-top:8px">' + tags(t) + "</div></div>" + ringHtml(t) + "</div>" +
+    '<div class="meta"><div>رقم المعاملة<b>' + t.ref + "</b></div><div>القسم<b>" + DEPTS[t.dept] + "</b></div><div>من<b>" + esc(t.from) + "</b></div><div>تاريخ الإنشاء<b>" + fdate(t.createdAt) + "</b></div><div>الموعد النهائي<b>" + fdate(t.due) + "</b></div><div>عند<b>" + LV[t.level] + "</b></div></div>" +
+    '<div class="body-text">' + esc(t.body) + "</div>" +
+    (t.attachments.length ? '<div class="files">' + t.attachments.map(f => '<span class="file"><em>' + ext(f.name) + "</em>" + esc(f.name) + ' <span class="mut">' + fsize(f.size) + "</span></span>").join("") + "</div>" : "") + "</div>" +
+    actions + '<div class="card"><h2>سجل التتبع</h2><ul class="tl" style="margin-top:12px">' + log + "</ul></div>";
+}
+
+/* ---------- الأحداث ---------- */
+function setField(k, v) { if (k.indexOf("nd.") === 0) V.nd[k.slice(3)] = v; else V[k] = v; }
+function doLogin(email) {
+  const u = USERS.find(x => x.email === email); if (!u) return;
+  me = u; V.brief = null; V.route = null; V.tab = "dash"; V.id = null; V.err = ""; V.bell = false; V.draft = ""; V.note = ""; V.nd.dept = u.dept || "fin"; render(); window.scrollTo(0, 0);
+}
+document.addEventListener("click", e => {
+  const inBell = e.target.closest(".bellwrap");
+  if (V.bell && !inBell && me) { V.bell = false; render(); }
+  const el = e.target.closest("[data-a]"); if (!el) return;
+  const a = el.dataset.a, id = Number(el.dataset.id);
+  if (a === "login") doLogin(el.dataset.email);
+  else if (a === "loginform") {
+    const em = (Q("#em").value || "").trim().toLowerCase(), pw = Q("#pw").value;
+    if (USERS.some(u => u.email === em) && pw === PASS) doLogin(em); else { V.err = "البريد أو كلمة المرور غير صحيحة."; render(); }
+  }
+  else if (a === "logout") { me = null; V.err = ""; render(); }
+  else if (a === "reset") { if (!V.resetArm) { V.resetArm = true; render(); } else { S = seed(); save(); V.resetArm = false; V.ai = {}; toast("أُعيد ضبط بيانات العرض"); render(); } }
+  else if (a === "tab") { V.tab = el.dataset.tab; V.bell = false; V.err = ""; render(); window.scrollTo(0, 0); }
+  else if (a === "open") { V.id = id; V.tab = "detail"; V.draft = ""; V.note = ""; render(); window.scrollTo(0, 0); }
+  else if (a === "bell") { V.bell = !V.bell; render(); }
+  else if (a === "opennotif") { const n = S.notifs.find(x => x.id === Number(el.dataset.nid)); if (n && !n.read.includes(me.email)) n.read.push(me.email); save(); V.bell = false; if (tx(id) && visible(tx(id))) { V.id = id; V.tab = "detail"; } render(); window.scrollTo(0, 0); }
+  else if (a === "canned") doReply(V.id, CANNED[tx(V.id).dept][Number(el.dataset.i)], "رد جاهز");
+  else if (a === "custom") doReply(V.id, V.draft, "رد مخصص");
+  else if (a === "escalate") doEscalate(V.id);
+  else if (a === "airun") runAI(V.id);
+  else if (a === "aireply") { const t = tx(V.id), r = V.ai[t.id + ":" + t.level]; if (r) doReply(t.id, r.reply, "ذكاء اصطناعي"); }
+  else if (a === "aiedit") { const t = tx(V.id), r = V.ai[t.id + ":" + t.level]; if (r) { V.draft = r.reply; render(); const c = Q("#cr"); if (c) c.focus(); } }
+  else if (a === "polish") polish();
+  else if (a === "brief") runBrief();
+  else if (a === "export") exportCsv();
+  else if (a === "sim") simulate();
+  else if (a === "route") runRoute();
+  else if (a === "tone") { V.tone = el.dataset.t; render(); }
+  else if (a === "addtx") addTx();
+  else if (a === "rmfile") { V.nd.files.splice(Number(el.dataset.i), 1); render(); }
+});
+document.addEventListener("input", e => {
+  const k = e.target.dataset && e.target.dataset.in; if (!k) return;
+  setField(k, e.target.value);
+  if (k === "q") Q("#listBody").innerHTML = listBody();
+});
+document.addEventListener("change", e => {
+  const k = e.target.dataset && e.target.dataset.change; if (!k) return;
+  if (k === "switch") { doLogin(e.target.value); return; }
+  if (k === "files") { Array.from(e.target.files || []).forEach(f => V.nd.files.push({name: f.name, size: f.size})); render(); return; }
+  setField(k, e.target.value); render();
+});
+document.addEventListener("keydown", e => { if (e.key === "Enter" && !me && e.target.tagName === "INPUT") { e.preventDefault(); const b = Q('[data-a="loginform"]'); if (b) b.click(); } });
+
+render();
+getSample().then(s => { V.hasSample = !!s; if (me) render(); });
+(async () => { try { const d = window.claude && window.claude.use ? await window.claude.use("downloads") : null; V.hasDl = !!d; if (me) render(); } catch (e) {} })();
+</script>
+
+</body>
+</html>
